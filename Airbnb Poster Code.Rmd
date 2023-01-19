@@ -1,0 +1,309 @@
+---
+title: "DV Poster Project"
+author: 
+date: 
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align='center', warning = FALSE, message = FALSE)
+```
+
+```{r}
+#install.packages('dplyr')
+#install.packages('tidyr')
+#install.packages('rgdal')
+#install.packages('tmap')
+#install.packages('ggmap')
+#install.packages('qmap')
+#install.packages('sp')
+#install.packages('rgeos')
+#install.packages("usethis")
+#install.packages('lubridate')
+#install.packages('tibbletime')
+#install.packages('Hmisc')
+#install.packages('plotly')
+#install.packages('forecast')
+```
+```{r}
+library(readr)
+library(tidyr)
+library(dplyr)
+library(rgdal)
+library(ggplot2)
+library(tmap)
+library(ggmap)
+library(qmap)
+library(knitr)
+library(sp)
+library(rgeos)
+library(usethis)
+library(rgdal)
+library(lubridate)
+library(knitr)
+```
+
+
+```{r}
+#1. map by pricing
+
+#to load data - I have to use import function but this can be loaded directly. 
+library(readr)
+listings <- read_csv("~/Downloads/Data Visualization Project/listings.csv")
+
+listings$price <-as.numeric(gsub("\\$", "", listings$price)) # This is to get rid of the $ sign and convert price to numeric value
+Listing <- data.frame(listings)
+#View(Listing)
+
+#cleaning data. Here we map the neihbourhood "Other Neighborhood" to the specific neighborhood group
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Industrial District"] <- "Greater Duwamish" 
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Georgetown"] <- "Greater Duwamish" 
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "South Park"] <- "Greater Duwamish" 
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Harbor Island"] <- "Greater Duwamish" 
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "SODO"] <- "Greater Duwamish" 
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "View Ridge"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Ravenna"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Sand Point"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Bryant"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Windermere"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Laurelhurst"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Roosevelt"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Wedgwood"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Hawthorne Hills"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Fairview"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "University Village"] <- "Northeast"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Broadview"] <- "Northwest"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Bitter Lake"] <- "Northwest"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Greenwood"] <- "Northwest"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Crown Hill"] <- "Northwest"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "North Beach/Blue Ridge"] <- "Northwest"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Phinney Ridge"] <- "North Central"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Wallingford"] <- "North Central"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Fremont"] <- "North Central"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Green Lake"] <- "North Central"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Woodland Park"] <- "North Central"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Meridian"] <- "North Central"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Northlake"] <- "North Central"
+Listing$neighbourhood_group_cleansed[Listing$neighbourhood_cleansed == "Tangle Town"] <- "North Central"
+
+
+#Create a new dataframe where the calculation of average price will be done. Drop NA value to ensure the math is valid.
+library(dplyr)
+Sealte_Price <- data.frame(Listing$id,Listing$neighbourhood_cleansed, Listing$neighbourhood_group_cleansed,Listing$price) %>%drop_na()
+Sealte_Listing_Price <- Sealte_Price %>% group_by(Listing.neighbourhood_group_cleansed) %>%summarise(Ave_Price =mean(Listing.price))%>%rename(L_HOOD = Listing.neighbourhood_group_cleansed)   
+#head(Sealte_Listing_Price)
+
+
+#This step is to create the maps for 2022
+#First is to download the shape file. Here is the link to download the shapefile for the neighbourhood https://data-seattlecitygis.opendata.arcgis.com/datasets/SeattleCityGIS::neighborhood-map-atlas-districts/about
+
+#Load the shapefile and tranform the data type
+library(rgdal)
+Seattle_Shape <- readOGR(dsn="Neighborhood_Map_Atlas_Districts", layer="Neighborhood_Map_Atlas_Districts", verbose = FALSE)
+Seattle_Shape@data$L_HOOD <- as.character(Seattle_Shape@data$L_HOOD)
+Seattle_Shape$L_HOOD <- as.character(Seattle_Shape$L_HOOD)
+
+#Merge the data between the maps and the pricing df where L_HOOD is acting as the primary key. If they are not the same, need to change the name in the pricing file to ensure they matched, which we did.
+
+PriceMaps <- merge(Seattle_Shape, Sealte_Listing_Price, by.x = "L_HOOD", by.y = "L_HOOD", all.x = TRUE)
+#head(ListingsMaps)
+library(tmap)
+PricebyNeigborhood <- tm_shape(PriceMaps) +
+  tm_polygons(col = "Ave_Price", style = "jenks", palette="Reds") +
+  tm_borders() +
+  tm_layout(main.title = "2022 Seattle Price by Neighbourhood",
+            main.title.size = 1,
+            title = "Average Price of Listings",
+            title.size = 1,
+            legend.outside = TRUE,
+            legend.title.size = 0.1,
+            legend.title.color = "white",
+            legend.text.size = 1
+            ) + tm_text("L_HOOD", size = 0.4)
+PricebyNeigborhood 
+
+tmap_save(PricebyNeigborhood, "Poster - Pricing Map.pdf", width = 6, height = 4, units = "in", dpi=3000)
+#Improvement: Adjust the neighborhood name, Round the average price, change the color pallet to make it consistent with other graph.
+```
+
+
+```{r}
+#2. Total Listing by Year
+
+#Load the data
+library(lubridate)
+library(dplyr)
+library(tidyverse)
+library(readr)
+listings <- read_csv("~/Downloads/Data Visualization Project/listings.csv")
+Listing <- data.frame(listings)
+
+
+#Create a new dataframe and normally selected interested collumed
+Sealte_Listing <- data.frame(Listing$id, Listing$host_id, Listing$host_since,Listing$last_scraped, Listing$host_location, Listing$host_listings_count, Listing$neighbourhood_cleansed, Listing$neighbourhood_group_cleansed,row_count = 1)
+
+#Tranform the Date value to have mutitple record per listing using interval calcuation
+Sealte_Listing_year <-  Sealte_Listing%>%mutate(date_int = interval(Listing.host_since, Listing.last_scraped),
+         year = map2(year(Listing.host_since), year(Listing.last_scraped), seq)) %>%
+  unnest(year) %>%mutate(year_int = interval(as.Date(paste0(year, '-01-01')), as.Date(paste0(year, '-12-31'))),
+         year_sect = intersect(date_int, year_int),
+         Listing_Date_Start = as.Date(int_start(year_sect)),
+         Listing_Date_End = as.Date(int_end(year_sect)))%>%mutate(Listing_count = 1)
+
+#Create new df and perfoming calculation
+Seatle_Listing_Time<- Sealte_Listing_year%>%mutate(Start_Year = (year(Sealte_Listing_year$Listing_Date_Start)))
+Seatle_Listing_Time_Dat <- Seatle_Listing_Time%>% group_by(Start_Year) %>%summarise_at(vars(Listing_count),
+              list(Listing_count= sum))
+Seatle_Listing_Time_Dat$Start_Year <- as.factor(Seatle_Listing_Time_Dat$Start_Year)
+#head(Seatle_Listing_Time_Dat)
+
+#Generate the Graphs
+ggplot(Seatle_Listing_Time_Dat, aes(x = Start_Year, y = Listing_count, group = 1)) +
+  labs(title = "Add Message: Listings by Year", x ="Year", y="Number of Listing", subtitle = " add subttile",
+       caption = "Source: add source") +  theme(plot.title = element_text(size = 15, face = "bold"), plot.subtitle = element_text(size = 12))+ geom_line()
+
+(ggsave("Poster - Listing by Year.pdf", width = 6, height = 4, units = "in", dpi=300))
+
+#Imrpovement: add tiltle, message, analytics, change color, gridline, etc. 
+```
+```{r}
+#3. Listing Per Hosts
+
+#Loading the data
+library(lubridate)
+library(dplyr)
+library(tidyverse)
+library(readr)
+listings <- read_csv("~/Downloads/Data Visualization Project/listings.csv")
+Listing <- data.frame(listings)
+
+#Create new df that only selected interested variable. 
+Listing_host <- data.frame(Listing$id, Host = Listing$host_id,row_count = 1)
+#View(Listing_host)
+
+
+#Perform calculation for the sum of listing
+Listing_host_count <- Listing_host%>% group_by(Host) %>%summarise_at(vars(row_count),
+              list(row_count= sum))
+#View(Listing_host_count)
+
+
+#These step are to melt, cast, tidy the data to have the correct dataframe that can be use in the graph
+Listing_host_dat <- Listing_host_count%>%mutate("1" = if_else( row_count== 1, row_count,0))%>%mutate("2" = if_else( row_count== 2, row_count,0))%>%mutate("3" = if_else( row_count== 3, row_count,0))%>%mutate("4" = if_else( row_count== 4, row_count,0))%>%mutate("5" = if_else( row_count== 5,row_count,0))%>%mutate("6" = if_else( row_count== 6, row_count,0))  %>%mutate("7" = if_else( row_count== 7, row_count,0))%>%mutate("8" = if_else( row_count== 8, row_count,0))%>%mutate("9" = if_else( row_count== 9, row_count,0))%>%mutate("10+" = if_else( row_count>= 10, row_count,0))
+#View(Listing_host_dat)
+library(reshape2)
+Listing_melt_dat <-melt(Listing_host_dat, id = c("Host","row_count")) 
+#view(Listing_melt_dat)
+library(reshape2)
+Listing_cast_data <- as.data.frame(dcast(Listing_melt_dat, variable~variable, sum, value.var="value", na.rm=TRUE))
+Listing_cast_data$row_sum = (rowSums(Listing_cast_data[,c(2,3,4,5,6,7,8,9,10,11)]))
+#head(Listing_cast_data)
+
+
+#generate the graph
+ggplot(Listing_cast_data, aes(x = reorder(variable,-variable), y = row_sum)) +
+  geom_bar(stat = "identity" , fill= "#336633", width = 0.9) +
+  labs(title ="Add Message: Listings per Host", x= "Listing per Host", y="Number of Listings", subtitle = " add subttile",caption = "Source: add source") +  theme(plot.title = element_text(size = 15, face = "bold"), plot.subtitle = element_text(size = 12)) +
+  theme(axis.text.x=element_text(angle=0, hjust=1))
+
+(ggsave("Poster - Listing Per Host.pdf", width = 6, height = 4, units = "in", dpi=300))
+#Imrpovement: add tiltle, message, analytics, change color, gridline, etc. 
+```
+
+
+
+```{r}
+#4. Price by months
+
+#Load data
+library(readr)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+calendar_1 <- read_csv("calendar(1).csv")
+#head(calendar_1)
+
+#Tidy the data by drop NA, tranform price value
+calendar_1_ <- calendar_1%>% drop_na() 
+calendar_1_$price <-as.numeric(gsub("\\$", "", calendar_1_$price))
+Price_Dat<- calendar_1_ %>% mutate(Month = (month(date)))%>% drop_na()
+#head(Price_Dat)
+
+#Perform calculation for new cdf
+Price <- Price_Dat%>% group_by(Month) %>% summarise( Price = mean(price))
+
+#This is to ensure the order of the month in the graph
+Price$Month <- factor(Price$Month,levels = c("1","2" ,"3","4","5","6","7","8","9","10","11","12"))
+
+#Plot the graph
+ggplot(Price, aes(x = Month, y = Price, group = 1)) +
+  labs(title = "Add Message: Price by month", x ="Month", y="Price", subtitle = " add subttile",
+       caption = "Source: add source") +  theme(plot.title = element_text(size = 15, face = "bold"), plot.subtitle = element_text(size = 12))+ geom_line() +expand_limits(y = 0) #+geom_point()
+
+(ggsave("Poster - Price by Month.pdf", width = 6, height = 4, units = "in", dpi=300))
+#Imrpovement: add tiltle, message, analytics, change color, gridline, etc. 
+```
+```{r}
+#4 scatter plot review vs price
+
+#load the data
+library(lubridate)
+library(dplyr)
+library(tidyverse)
+library(readr)
+listings <- read_csv("~/Downloads/Data Visualization Project/listings.csv")
+Listing <- data.frame(listings)
+#View(Listing)
+
+#Create new df with interested variables
+Review_dat <- data.frame(Listing$id, Listing$host_id, Listing$price,Listing$review_scores_rating, Listing$review_scores_value, Listing$review_scores_accuracy, Listing$review_scores_checkin, Listing$review_scores_cleanliness, Listing$review_scores_communication, Listing$review_scores_location)%>% drop_na()
+
+#Tranform pricing value
+Review_dat$Listing.price <-as.numeric(gsub("\\$", "", Review_dat$Listing.price))
+#view(Review_dat)
+
+#Ploting the data
+ggplot(Review_dat, aes((Listing.review_scores_value),(Listing.price))) + geom_point(shape=1, color="dark green") + labs(title = "Add Message: Price vs Review", x ="Review Scores", y="Price", subtitle = " add subttile",
+       caption = "Source: add source") #+geom_smooth(method="lm")
+
+(ggsave("Poster - Price vs Review.pdf", width = 6, height = 4, units = "in", dpi=300))
+#Imrpovement: create regression line the fitted by transform the data, add tiltle, message, analytics, change color, gridline, etc. 
+```
+```{r}
+#5 Listing by license
+
+#Load the data
+library(lubridate)
+library(dplyr)
+library(tidyverse)
+library(readr)
+listings <- read_csv("~/Downloads/Data Visualization Project/listings.csv")
+Listing <- data.frame(listings)
+#View(Listing)
+
+#Create new dataframe with interested variables. Tranforms the data to ensure we got the right catergories.
+Lisence_dat <- data.frame(Listing$id,Listing$license)
+Lisence_dat$Listing.license[is.na(Lisence_dat$Listing.license)]<-'Unlicensed'
+Lisence <- Lisence_dat%>%mutate("License_Status" = if_else(Listing.license== "Exempt", 'Exempt',
+                                                 if_else(Listing.license== "City registration pending",'Pending',
+                                                 if_else(Listing.license == "Unlicensed",'Unlicensed','Licensed'))))
+#View(Lisence)
+
+#Create new df for the graph
+Lisence_Graph <- Lisence %>% count(License_Status) %>% mutate(Percentage = round(n/nrow(Lisence)*100,2))
+#View(Lisence_Graph)
+
+#Plot the df
+ggplot(Lisence_Graph, aes(x = reorder(License_Status,-sqrt(Percentage)), y = sqrt(Percentage))) + geom_bar(stat = "identity" , fill= "#336633", width = 0.8) +
+  labs(title = "Percentage of License ", x="Type of License", y="Square root of Percentage",  caption = "Source: add source") +
+  theme(axis.text.x=element_text(angle=0, hjust=1)) # + coord_flip()
+
+(ggsave("Poster - License.pdf", width = 6, height = 4, units = "in", dpi=300))
+#Imrpovement:add tiltle, message, analytics, change color, gridline, etc. 
+```
+
+
